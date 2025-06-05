@@ -1,0 +1,100 @@
+name: Render 3D Earth Animation
+
+on: [push, workflow_dispatch]
+
+env:
+  BLENDER_VERSION: "3.6.5" # Or a more recent LTS like 4.0.2
+  # Define texture paths relative to the GITHUB_WORKSPACE
+  EARTH_TEXTURE_FILE: "earth_texture.jpg" # Make sure this file is in your repo
+  SPACE_TEXTURE_FILE: "space_background.jpg" # Make sure this file is in your repo (optional)
+  ANIMATION_PLAN_FILE: "animation_plan.json"
+  OUTPUT_FRAMES_DIR: "${{ github.workspace }}/blender_output_frames" # Output frames here
+  FINAL_VIDEO_NAME: "earth_map_animation.mp4"
+  FPS: 30
+
+jobs:
+  build_and_render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies for plan generation
+        run: pip install geopandas pandas # Add any other dependencies for generate_animation_plan.py
+
+      - name: Download Natural Earth Data (Run your download script)
+        # Assuming you have your shapefile download script from before, e.g., setup_map_data.py
+        # It should place data in /content/natural_earth_data/...
+        # The generate_animation_plan.py expects it there.
+        # If setup_map_data.py is in repo:
+        run: python ./setup_map_data.py # Ensure this script uses /content/ for output
+
+      - name: Generate Animation Plan JSON
+        run: python ./generate_animation_plan.py # This creates animation_plan.json in workspace
+
+      - name: Verify Animation Plan
+        run: |
+          echo "Verifying content of ${{ env.ANIMATION_PLAN_FILE }}:"
+          cat ${{ env.ANIMATION_PLAN_FILE }}
+          if [ ! -f "${{ env.ANIMATION_PLAN_FILE }}" ]; then
+            echo "Error: ${{ env.ANIMATION_PLAN_FILE }} not found!"
+            exit 1
+          fi
+
+      - name: Download and Extract Blender
+        run: |
+          BLENDER_MAJOR_MINOR=$(echo $BLENDER_VERSION | cut -d. -f1,2)
+          BLENDER_TARBALL="blender-${BLENDER_VERSION}-linux-x64.tar.xz"
+          wget "https://download.blender.org/release/Blender${BLENDER_MAJOR_MINOR}/${BLENDER_TARBALL}" -O "${BLENDER_TARBALL}"
+          mkdir ./blender_install
+          tar -xf "${BLENDER_TARBALL}" -C ./blender_install --strip-components=1
+          rm "${BLENDER_TARBALL}" # Clean up tarball
+          echo "./blender_install" >> $GITHUB_PATH # Add blender to PATH for this job
+
+      - name: Verify Blender Installation
+        run: blender --version
+
+      - name: Check for Texture Files
+        run: |
+          ls -l ${{ github.workspace }} # List files to see if textures are present
+          if [ ! -f "${{ github.workspace }}/${{ env.EARTH_TEXTURE_FILE }}" ]; then
+            echo "Error: Earth texture ${{ env.EARTH_TEXTURE_FILE }} not found in workspace!"
+            exit 1
+          fi
+          # Space texture is optional, handled in Blender script
+
+      - name: Create Output Directory for Blender Frames
+        run: mkdir -p ${{ env.OUTPUT_FRAMES_DIR }}
+
+      - name: Run Blender Headless Render
+        run: |
+          blender -b -P ./render_blender_scene.py -- \
+            "${{ github.workspace }}/${{ env.ANIMATION_PLAN_FILE }}" \
+            "${{ github.workspace }}/${{ env.EARTH_TEXTURE_FILE }}" \
+            "${{ github.workspace }}/${{ env.SPACE_TEXTURE_FILE }}" \
+            "${{ env.OUTPUT_FRAMES_DIR }}"/
+        # Note: The trailing slash on OUTPUT_FRAMES_DIR is important for Blender's frame pattern
+
+      - name: List Rendered Frames
+        run: ls -l ${{ env.OUTPUT_FRAMES_DIR }}
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Combine Frames into Video
+        run: |
+          ffmpeg -framerate ${{ env.FPS }} -i "${{ env.OUTPUT_FRAMES_DIR }}/frame_%%05d.png" \
+          -c:v libx264 -pix_fmt yuv420p -r ${{ env.FPS }} -crf 20 \
+          "${{ github.workspace }}/${{ env.FINAL_VIDEO_NAME }}"
+        # Blender uses 5-digit padding by default (frame_00001.png) -> %%05d
+
+      - name: Upload Video Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: map-animation-video
+          path: "${{ github.workspace }}/${{ env.FINAL_VIDEO_NAME }}"
