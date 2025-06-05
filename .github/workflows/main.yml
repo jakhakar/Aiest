@@ -1,4 +1,4 @@
-name: Render 3D Earth Animation
+name: Render
 
 on: [push, workflow_dispatch]
 
