@@ -25,7 +25,7 @@ jobs:
           python-version: '3.9'
 
       - name: Install dependencies for plan generation
-        run: pip install geopandas pandas # Add any other dependencies for generate_animation_plan.py
+        run: pip install geopandas pandas requests # Add any other dependencies for generate_animation_plan.py
 
       - name: Download Natural Earth Data (Run your download script)
         # Assuming you have your shapefile download script from before, e.g., setup_map_data.py
