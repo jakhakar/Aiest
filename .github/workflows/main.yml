@@ -1,4 +1,4 @@
-name: Render
+name: Ren
 
 on: [push, workflow_dispatch]
 
