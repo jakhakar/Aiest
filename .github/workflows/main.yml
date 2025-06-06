@@ -10,7 +10,7 @@ env:
   # Paths are relative to the repository root (GITHUB_WORKSPACE)
   EARTH_TEXTURE_FILE: "earth_texture.jpg"
   SPACE_TEXTURE_FILE: "space_background.jpeg" # Leave empty if no space texture: ""
-  CUSTOM_FONT_FILE: ""     # Leave empty if no custom font: ""
+  CUSTOM_FONT_FILE: "fonts/Montserrat-Medium.ttf"   # Leave empty if no custom font: ""
   
   ANIMATION_PLAN_SCRIPT: "generate_animation_plan.py"
   BLENDER_SCRIPT: "render_blender_scene.py"
