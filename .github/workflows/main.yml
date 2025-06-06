@@ -12,7 +12,7 @@ env:
   SPACE_TEXTURE_FILE: "space_background.jpeg" # Leave empty if no space texture: ""
   CUSTOM_FONT_FILE: ""     # Leave empty if no custom font: ""
   
-  ANIMATION_PLAN_SCRIPT: "scripts/generate_animation_plan.py"
+  ANIMATION_PLAN_SCRIPT: "generate_animation_plan.py"
   BLENDER_SCRIPT: "scripts/render_blender_scene.py"
   SHAPEFILE_DOWNLOAD_SCRIPT: "scripts/setup_map_data.py" # If you use this script
 
