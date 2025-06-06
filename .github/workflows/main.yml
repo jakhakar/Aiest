@@ -6,6 +6,7 @@ env:
   BLENDER_VERSION: "3.6.5" # Or a more recent LTS like 4.0.2
   # Define texture paths relative to the GITHUB_WORKSPACE
   EARTH_TEXTURE_FILE: "earth_texture.jpg" # Make sure this file is in your repo
+  CUSTOM_FONT_FILE: "fonts/Montserrat-Medium.ttf"
   SPACE_TEXTURE_FILE: "space_background.jpeg" # Make sure this file is in your repo (optional)
   ANIMATION_PLAN_FILE: "animation_plan.json"
   OUTPUT_FRAMES_DIR: "${{ github.workspace }}/blender_output_frames" # Output frames here
