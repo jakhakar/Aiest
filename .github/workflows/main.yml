@@ -13,8 +13,8 @@ env:
   CUSTOM_FONT_FILE: ""     # Leave empty if no custom font: ""
   
   ANIMATION_PLAN_SCRIPT: "generate_animation_plan.py"
-  BLENDER_SCRIPT: "scripts/render_blender_scene.py"
-  SHAPEFILE_DOWNLOAD_SCRIPT: "scripts/setup_map_data.py" # If you use this script
+  BLENDER_SCRIPT: "render_blender_scene.py"
+  SHAPEFILE_DOWNLOAD_SCRIPT: "setup_map_data.py" # If you use this script
 
   ANIMATION_PLAN_JSON: "animation_plan.json" # Output of generate_animation_plan.py
   OUTPUT_FRAMES_DIR_NAME: "blender_output_frames" # Name of the subdir for frames
