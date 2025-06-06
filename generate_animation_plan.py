@@ -38,7 +38,7 @@ FPS = 30
 # after the download step for the shapefile.
 # For local testing, ensure it points to your local shapefile.
 # If running this script *after* the shapefile download script in Colab/Actions, this path is correct.
-NATURAL_EARTH_SHP_PATH = "/content/natural_earth_data/ne_110m_admin_0_countries/ne_110m_admin_0_countries.shp"
+NATURAL_EARTH_SHP_PATH = "data/map_data/ne_110m_admin_0_countries.shp"
 
 
 def generate_plan():
