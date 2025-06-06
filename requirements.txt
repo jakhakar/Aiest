@@ -1,0 +1,18 @@
+# For generate_animation_plan.py
+geopandas>=0.10.0
+pandas>=1.3.0
+# Shapely is a core dependency of geopandas, often good to specify
+Shapely>=1.8.0 
+# Fiona is another core dependency for reading/writing vector files
+Fiona>=1.8.0
+# pyproj is for coordinate transformations
+pyproj>=3.0.0
+
+# For setup_map_data.py (shapefile download script)
+requests>=2.25.0
+
+# For the matplotlib-based animation scripts (if you were still using them or parts of them)
+# matplotlib>=3.4.0
+# contextily>=1.1.0 # If using contextily for basemaps
+# Pillow>=8.3.0 # For image manipulation
+# numpy>=1.20.0 # Often a dependency of others, but good to list
