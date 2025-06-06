@@ -1,98 +1,180 @@
-name: Ren
+name: Render 3D Earth Animation
 
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches: [ main ] # Or your default branch
+  workflow_dispatch: # Allows manual triggering
 
 env:
   BLENDER_VERSION: "3.6.5" # Or a more recent LTS like 4.0.2
-  # Define texture paths relative to the GITHUB_WORKSPACE
-  EARTH_TEXTURE_FILE: "earth_texture.jpg" # Make sure this file is in your repo
-  CUSTOM_FONT_FILE: "fonts/Montserrat-Medium.ttf"
-  SPACE_TEXTURE_FILE: "space_background.jpeg" # Make sure this file is in your repo (optional)
-  ANIMATION_PLAN_FILE: "animation_plan.json"
-  OUTPUT_FRAMES_DIR: "${{ github.workspace }}/blender_output_frames" # Output frames here
+  # Paths are relative to the repository root (GITHUB_WORKSPACE)
+  EARTH_TEXTURE_FILE: "earth_texture.jpg"
+  SPACE_TEXTURE_FILE: "space_background.jpeg" # Leave empty if no space texture: ""
+  CUSTOM_FONT_FILE: ""     # Leave empty if no custom font: ""
+  
+  ANIMATION_PLAN_SCRIPT: "scripts/generate_animation_plan.py"
+  BLENDER_SCRIPT: "scripts/render_blender_scene.py"
+  SHAPEFILE_DOWNLOAD_SCRIPT: "scripts/setup_map_data.py" # If you use this script
+
+  ANIMATION_PLAN_JSON: "animation_plan.json" # Output of generate_animation_plan.py
+  OUTPUT_FRAMES_DIR_NAME: "blender_output_frames" # Name of the subdir for frames
   FINAL_VIDEO_NAME: "earth_map_animation.mp4"
+  
   FPS: 30
+  VIDEO_WIDTH: 720
+  VIDEO_HEIGHT: 1280
 
 jobs:
   build_and_render:
     runs-on: ubuntu-latest
+    timeout-minutes: 360 # Max job timeout (6 hours) - adjust if needed
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          lfs: true # If your textures/blend files are large and use Git LFS
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.9' # Or your preferred version
 
-      - name: Install dependencies for plan generation
-        run: pip install geopandas pandas requests # Add any other dependencies for generate_animation_plan.py
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
 
-      - name: Download Natural Earth Data (Run your download script)
-        # Assuming you have your shapefile download script from before, e.g., setup_map_data.py
-        # It should place data in /content/natural_earth_data/...
-        # The generate_animation_plan.py expects it there.
-        # If setup_map_data.py is in repo:
-        run: python ./setup_map_data.py # Ensure this script uses /content/ for output
+      # Option 1: Download shapefiles during the workflow
+      # Uncomment this block if you want the action to download the shapefiles each time.
+      # Ensure NATURAL_EARTH_SHP_PATH in generate_animation_plan.py is /content/natural_earth_data/...
+      # - name: Download Natural Earth Data
+      #   run: python ${{ env.SHAPEFILE_DOWNLOAD_SCRIPT }}
+
+      # Option 2: Use shapefiles committed to the repository
+      # If you use this, ensure NATURAL_EARTH_SHP_PATH in generate_animation_plan.py
+      # is relative to the repo root, e.g., "data/map_data/ne_110m_admin_0_countries/ne_110m_admin_0_countries.shp"
+      # And make sure the "Download Natural Earth Data" step above is commented out.
 
       - name: Generate Animation Plan JSON
-        run: python ./generate_animation_plan.py # This creates animation_plan.json in workspace
+        run: python ${{ env.ANIMATION_PLAN_SCRIPT }}
+        # This script should output ${{ env.ANIMATION_PLAN_JSON }} to GITHUB_WORKSPACE
 
       - name: Verify Animation Plan
         run: |
-          echo "Verifying content of ${{ env.ANIMATION_PLAN_FILE }}:"
-          cat ${{ env.ANIMATION_PLAN_FILE }}
-          if [ ! -f "${{ env.ANIMATION_PLAN_FILE }}" ]; then
-            echo "Error: ${{ env.ANIMATION_PLAN_FILE }} not found!"
+          echo "Verifying content of ${{ env.ANIMATION_PLAN_JSON }}:"
+          cat ${{ env.ANIMATION_PLAN_JSON }}
+          if [ ! -f "${{ github.workspace }}/${{ env.ANIMATION_PLAN_JSON }}" ]; then
+            echo "Error: ${{ env.ANIMATION_PLAN_JSON }} not found in workspace!"
             exit 1
           fi
 
       - name: Download and Extract Blender
+        id: setup_blender # Give the step an id to access its outputs if needed
         run: |
           BLENDER_MAJOR_MINOR=$(echo $BLENDER_VERSION | cut -d. -f1,2)
           BLENDER_TARBALL="blender-${BLENDER_VERSION}-linux-x64.tar.xz"
-          wget "https://download.blender.org/release/Blender${BLENDER_MAJOR_MINOR}/${BLENDER_TARBALL}" -O "${BLENDER_TARBALL}"
+          echo "Downloading Blender: ${BLENDER_TARBALL}..."
+          wget --quiet "https://download.blender.org/release/Blender${BLENDER_MAJOR_MINOR}/${BLENDER_TARBALL}" -O "${BLENDER_TARBALL}"
+          echo "Extracting Blender..."
           mkdir ./blender_install
           tar -xf "${BLENDER_TARBALL}" -C ./blender_install --strip-components=1
-          rm "${BLENDER_TARBALL}" # Clean up tarball
-          echo "./blender_install" >> $GITHUB_PATH # Add blender to PATH for this job
+          rm "${BLENDER_TARBALL}"
+          echo "BLENDER_EXECUTABLE_PATH=$(pwd)/blender_install/blender" >> $GITHUB_ENV
+          echo "Blender installed to $(pwd)/blender_install"
 
       - name: Verify Blender Installation
-        run: blender --version
+        run: ${{ env.BLENDER_EXECUTABLE_PATH }} --version
 
-      - name: Check for Texture Files
+      - name: Check for Asset Files
         run: |
-          ls -l ${{ github.workspace }} # List files to see if textures are present
+          echo "Workspace content:"
+          ls -l ${{ github.workspace }}
+          echo "Textures folder content:"
+          ls -l ${{ github.workspace }}/textures || echo "No textures folder"
+          echo "Fonts folder content:"
+          ls -l ${{ github.workspace }}/fonts || echo "No fonts folder"
+
           if [ ! -f "${{ github.workspace }}/${{ env.EARTH_TEXTURE_FILE }}" ]; then
             echo "Error: Earth texture ${{ env.EARTH_TEXTURE_FILE }} not found in workspace!"
             exit 1
           fi
-          # Space texture is optional, handled in Blender script
+          
+          if [ -n "${{ env.CUSTOM_FONT_FILE }}" ]; then # Only check if variable is not empty
+            if [ ! -f "${{ github.workspace }}/${{ env.CUSTOM_FONT_FILE }}" ]; then
+              echo "Warning: Custom font file ${{ env.CUSTOM_FONT_FILE }} specified but not found! Blender will use default."
+            else
+              echo "Custom font file found: ${{ github.workspace }}/${{ env.CUSTOM_FONT_FILE }}"
+            fi
+          else
+            echo "No custom font file specified. Blender will use default."
+          fi
+          
+          if [ -n "${{ env.SPACE_TEXTURE_FILE }}" ]; then # Only check if variable is not empty
+            if [ ! -f "${{ github.workspace }}/${{ env.SPACE_TEXTURE_FILE }}" ]; then
+              echo "Warning: Space texture ${{ env.SPACE_TEXTURE_FILE }} specified but not found! Blender will use black background."
+            else
+              echo "Space texture file found: ${{ github.workspace }}/${{ env.SPACE_TEXTURE_FILE }}"
+            fi
+          else
+            echo "No space texture file specified. Blender will use black background."
+          fi
 
       - name: Create Output Directory for Blender Frames
-        run: mkdir -p ${{ env.OUTPUT_FRAMES_DIR }}
+        run: mkdir -p ${{ github.workspace }}/${{ env.OUTPUT_FRAMES_DIR_NAME }}
 
       - name: Run Blender Headless Render
         run: |
-          blender -b -P ./render_blender_scene.py -- \
-            "${{ github.workspace }}/${{ env.ANIMATION_PLAN_FILE }}" \
-            "${{ github.workspace }}/${{ env.EARTH_TEXTURE_FILE }}" \
-            "${{ github.workspace }}/${{ env.SPACE_TEXTURE_FILE }}" \
-            "${{ env.OUTPUT_FRAMES_DIR }}"/
-        # Note: The trailing slash on OUTPUT_FRAMES_DIR is important for Blender's frame pattern
+          PLAN_ARG="${{ github.workspace }}/${{ env.ANIMATION_PLAN_JSON }}"
+          EARTH_TEX_ARG="${{ github.workspace }}/${{ env.EARTH_TEXTURE_FILE }}"
+          
+          SPACE_TEX_ARG="" # Default to empty string
+          if [ -n "${{ env.SPACE_TEXTURE_FILE }}" ] && [ -f "${{ github.workspace }}/${{ env.SPACE_TEXTURE_FILE }}" ]; then
+            SPACE_TEX_ARG="${{ github.workspace }}/${{ env.SPACE_TEXTURE_FILE }}"
+          fi
+          
+          FONT_ARG="" # Default to empty string
+          if [ -n "${{ env.CUSTOM_FONT_FILE }}" ] && [ -f "${{ github.workspace }}/${{ env.CUSTOM_FONT_FILE }}" ]; then
+            FONT_ARG="${{ github.workspace }}/${{ env.CUSTOM_FONT_FILE }}"
+          fi
+
+          OUTPUT_DIR_ARG="${{ github.workspace }}/${{ env.OUTPUT_FRAMES_DIR_NAME }}/" # Note the trailing slash
+
+          echo "--- Blender script arguments being passed ---"
+          echo "1 (Plan): $PLAN_ARG"
+          echo "2 (Earth Tex): $EARTH_TEX_ARG"
+          echo "3 (Space Tex): '$SPACE_TEX_ARG'"
+          echo "4 (Font): '$FONT_ARG'"
+          echo "5 (Output Dir): $OUTPUT_DIR_ARG"
+          echo "-------------------------------------------"
+
+          ${{ env.BLENDER_EXECUTABLE_PATH }} -b -P ${{ env.BLENDER_SCRIPT }} -- \
+            "$PLAN_ARG" \
+            "$EARTH_TEX_ARG" \
+            "$SPACE_TEX_ARG" \
+            "$FONT_ARG" \
+            "$OUTPUT_DIR_ARG"
+        env: # Pass video dimensions to Blender script via env if Blender script is set up to read them
+            BLENDER_VIDEO_WIDTH_ENV: ${{ env.VIDEO_WIDTH }}
+            BLENDER_VIDEO_HEIGHT_ENV: ${{ env.VIDEO_HEIGHT }}
 
       - name: List Rendered Frames
-        run: ls -l ${{ env.OUTPUT_FRAMES_DIR }}
+        run: |
+          echo "Listing contents of output directory: ${{ github.workspace }}/${{ env.OUTPUT_FRAMES_DIR_NAME }}"
+          ls -lh ${{ github.workspace }}/${{ env.OUTPUT_FRAMES_DIR_NAME }}
+          # Check if any frames were rendered
+          if [ -z "$(ls -A ${{ github.workspace }}/${{ env.OUTPUT_FRAMES_DIR_NAME }})" ]; then
+             echo "Error: No frames were rendered by Blender!"
+             exit 1
+          fi
+
 
       - name: Install ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Combine Frames into Video
         run: |
-          ffmpeg -framerate ${{ env.FPS }} -i "${{ env.OUTPUT_FRAMES_DIR }}/frame_%%05d.png" \
+          ffmpeg -framerate ${{ env.FPS }} -i "${{ github.workspace }}/${{ env.OUTPUT_FRAMES_DIR_NAME }}/frame_%%05d.png" \
           -c:v libx264 -pix_fmt yuv420p -r ${{ env.FPS }} -crf 20 \
           "${{ github.workspace }}/${{ env.FINAL_VIDEO_NAME }}"
-        # Blender uses 5-digit padding by default (frame_00001.png) -> %%05d
 
       - name: Upload Video Artifact
         uses: actions/upload-artifact@v4
