@@ -80,7 +80,15 @@ jobs:
           rm "${BLENDER_TARBALL}"
           echo "BLENDER_EXECUTABLE_PATH=$(pwd)/blender_install/blender" >> $GITHUB_ENV
           echo "Blender installed to $(pwd)/blender_install"
-
+      
+      - name: Install Headless Graphics Libraries
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libgl1-mesa-glx libegl1-mesa libgles2-mesa \
+                                  libgl1-mesa-dri libgbm1 \
+                                  libxrender1 libxcomposite1 libxcursor1 \
+                                  libxinerama1 libxrandr2 libxi6 libxxf86vm1
+      
       - name: Verify Blender Installation
         run: ${{ env.BLENDER_EXECUTABLE_PATH }} --version
 
